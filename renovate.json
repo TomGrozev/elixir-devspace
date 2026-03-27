@@ -1,0 +1,22 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "ignoreTests": true,
+  "timezone": "Australia/Sydney",
+  "dependencyDashboardTitle": "Renovate Dashboard",
+  "suppressNotifications": ["prEditedNotification", "prIgnoreNotification"],
+  "commitBodyTable": true,
+  "rebaseWhen": "auto",
+  "platformCommit": "enabled",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^Dockerfile$/"],
+      "matchStringsStrategy": "any",
+      "matchStrings": [
+        "ENV [A-Z]+_VERSION=(?<currentValue>.*) # (?<datasource>.*?)/(?<depName>.*?)\\s"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ]
+}
