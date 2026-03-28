@@ -14,7 +14,16 @@
       "managerFilePatterns": ["/^Dockerfile$/"],
       "matchStringsStrategy": "any",
       "matchStrings": [
-        "# renovate: depName=(?<depName>.*?) datasource=(?<datasource>.*?)\\s+ENV [A-Z]+_VERSION=(?<currentValue>.*)\\s"
+        "# renovate: depName=(?<depName>.*?) datasource=(?<datasource>.*?)\\sENV [A-Z]+_VERSION=(?<currentValue>.*)\\s"
+      ],
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/\\.yml$/"],
+      "matchStringsStrategy": "any",
+      "matchStrings": [
+        "# renovate: depName=(?<depName>.*?) datasource=(?<datasource>.*?)\\s  VERSION: (?<currentValue>.*)\\s"
       ],
       "datasourceTemplate": "github-releases"
     }
