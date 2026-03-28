@@ -14,9 +14,9 @@
       "managerFilePatterns": ["/^Dockerfile$/"],
       "matchStringsStrategy": "any",
       "matchStrings": [
-        "ENV [A-Z]+_VERSION=(?<currentValue>.*) # (?<datasource>.*?)/(?<depName>.*?)\\s"
+        "# renovate: depName=(?<depName>.*?) datasource=(?<datasource>.*?)\\s+ENV [A-Z]+_VERSION=(?<currentValue>.*)\\s"
       ],
-      "datasourceTemplate": "docker"
+      "datasourceTemplate": "github-releases"
     }
   ]
 }

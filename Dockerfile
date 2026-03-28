@@ -4,8 +4,10 @@ FROM quay.io/redhat-cop/devspaces-base:latest
 # Set environment variables for Elixir installation
 # Using OTP 26 and Elixir 1.15 as stable, well-supported versions. 
 # You can adjust these versions if needed.
-ENV ELIXIR_VERSION=1.19.5 # renovate: github-releases/elixir-lang/elixir
-ENV OTP_VERSION=27.3.4.9 # renovate: github-releases/erlang/otp
+# renovate: depName=elixir-lang/elixir datasource=github-releases
+ENV ELIXIR_VERSION=1.19.5 
+# renovate: depName=erlang/otp datasource=github-releases
+ENV OTP_VERSION=27.3.4.9
 ENV REBAR3_VERSION=3.26.0
 ENV LANG=C.UTF-8
 
