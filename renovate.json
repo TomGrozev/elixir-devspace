@@ -23,7 +23,7 @@
       "managerFilePatterns": ["/\\.yml$/"],
       "matchStringsStrategy": "any",
       "matchStrings": [
-        "# renovate: depName=(?<depName>.*?) datasource=(?<datasource>.*?)\\s  VERSION: (?<currentValue>.*)\\s"
+        "VERSION: (?<currentValue>.*) # renovate: depName=(?<depName>.*?) datasource=(?<datasource>.*?)\\s"
       ],
       "datasourceTemplate": "github-releases"
     }

@@ -9,8 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  # renovate: depName=elixir-lang/elixir datasource=github-releases
-  VERSION: 1.19.5
+  VERSION: 1.19.5 # renovate: depName=elixir-lang/elixir datasource=github-releases
 
 jobs:
   build:
