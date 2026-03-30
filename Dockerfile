@@ -1,5 +1,5 @@
 # Use the specified Red Hat Community of Practice DevSpaces base image
-FROM quay.io/redhat-cop/devspaces-base:latest
+FROM registry.redhat.io/devspaces/udi-base-rhel9:3.26
 
 # Set environment variables for Elixir installation
 # Using OTP 26 and Elixir 1.15 as stable, well-supported versions. 
