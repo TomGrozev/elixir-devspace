@@ -2,54 +2,101 @@ name: Docker Build
 
 on:
   push:
-    branches: [master]
-  pull_request:
-    branches: [master]
+    tags: ["*"]
+  workflow_dispatch:
+    inputs:
+      ELIXIR_VERSION:
+        description: "Elixir version"
+        required: true
+        default: "1.19.5"
+      OTP_VERSION:
+        description: "Erlang/OTP version"
+        required: true
+        default: "27.3.4.9"
+      DELTA_VERSION:
+        description: "git-delta version"
+        required: true
+        default: "0.19.2"
+      RTK_VERSION:
+        description: "rtk version (with v prefix)"
+        required: true
+        default: "v0.42.4"
+      OPENCODE_VERSION:
+        description: "opencode version (with v prefix)"
+        required: true
+        default: "v1.17.8"
+      ZSH_IN_DOCKER_VERSION:
+        description: "zsh-in-docker version"
+        required: true
+        default: "1.2.1"
+      image_tag:
+        description: "Additional image tag (optional)"
+        required: false
+        default: ""
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-  VERSION: 1.19.5 # renovate: depName=elixir-lang/elixir datasource=github-releases
+  IMAGE_NAME: ${{ github.repository_owner }}/elixir-devspace
+  # renovate: depName=elixir-lang/elixir datasource=github-releases
+  VERSION: 1.19.5
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       packages: write
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Extract version tag
+        id: version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
 
-      # Login to GitHub Container Registry
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Generate tags based on git context
-      - name: Docker metadata
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # Git short SHA
-            type=sha,prefix=
-            # Semantic version from tag
-            type=semver,pattern={{version}},value=${{ env.VERSION }}
-            # Latest on default branch
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' && github.event_name == 'push' }}
+            type=raw,value=elixir-${{ inputs.ELIXIR_VERSION || '1.19.5' }}-otp-${{ inputs.OTP_VERSION || '27.3.4.9' }}
+            type=raw,value=${{ steps.version.outputs.tag }}-elixir-${{ inputs.ELIXIR_VERSION || '1.19.5' }}-otp-${{ inputs.OTP_VERSION || '27.3.4.9' }},enable=${{ steps.version.outputs.tag != '' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ steps.version.outputs.tag != '' }}
+            type=raw,value=${{ inputs.image_tag }},enable=${{ inputs.image_tag != '' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ELIXIR_VERSION=${{ inputs.ELIXIR_VERSION || '1.19.5' }}
+            OTP_VERSION=${{ inputs.OTP_VERSION || '27.3.4.9' }}
+            DELTA_VERSION=${{ inputs.DELTA_VERSION || '0.19.2' }}
+            RTK_VERSION=${{ inputs.RTK_VERSION || 'v0.42.4' }}
+            OPENCODE_VERSION=${{ inputs.OPENCODE_VERSION || 'v1.17.8' }}
+            ZSH_IN_DOCKER_VERSION=${{ inputs.ZSH_IN_DOCKER_VERSION || '1.2.1' }}

@@ -1,15 +1,33 @@
+# Build args
+ARG ELIXIR_VERSION=1.19.5
+ARG OTP_VERSION=27.3.4.9
+ARG NODE_MAJOR=22
+# renovate: depName=dandavison/delta datasource=github-releases
+ARG DELTA_VERSION=0.19.2
+# renovate: depName=rtk-ai/rtk datasource=github-releases
+ARG RTK_VERSION=v0.42.4
+# renovate: depName=sst/opencode datasource=github-releases
+ARG OPENCODE_VERSION=v1.17.8
+# renovate: depName=deluan/zsh-in-docker datasource=github-releases
+ARG ZSH_IN_DOCKER_VERSION=1.2.1
+
 # Use the specified Red Hat Community of Practice DevSpaces base image
 FROM quay.io/redhat-cop/devspaces-base:latest
 
-# Set environment variables for Elixir installation
-# Using OTP 26 and Elixir 1.15 as stable, well-supported versions. 
-# You can adjust these versions if needed.
-# renovate: depName=elixir-lang/elixir datasource=github-releases
-ENV ELIXIR_VERSION=1.19.5 
-# renovate: depName=erlang/otp datasource=github-releases
-ENV OTP_VERSION=27.3.4.9
-ENV REBAR3_VERSION=3.26.0
-ENV LANG=C.UTF-8
+# Re-declare args for use in this stage
+ARG ELIXIR_VERSION
+ARG OTP_VERSION
+ARG NODE_MAJOR
+ARG DELTA_VERSION
+ARG RTK_VERSION
+ARG OPENCODE_VERSION
+ARG ZSH_IN_DOCKER_VERSION
+ARG TARGETARCH
+
+ENV LANG=en_AU.UTF-8
+ENV LC_ALL=en_AU.UTF-8
+ENV TZ=Australia/Sydney
+ENV NPM_CONFIG_PREFIX=/home/user/.local
 
 # Install dependencies required to build Elixir/Erlang from source or install packages
 # The base image likely has basic build tools, but we ensure key dependencies are present
@@ -30,7 +48,7 @@ RUN dnf update -y && \
   ncurses-devel \
   openssl-devel \
   inotify-tools \
-  # --exclude=erlang-wx \
+  glibc-devel \
   && dnf clean all
 
 # We'll install the build dependencies for erlang-odbc along with the erlang
@@ -88,12 +106,48 @@ RUN set -xe \
 # Verify installation
 RUN elixir --version
 
+# Install Node.js 22.x
+RUN curl -fsSL https://rpm.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
+  dnf install -y nodejs && \
+  dnf clean all && \
+  rm -rf /var/cache/dnf && \
+  node --version && npm --version
+
+# Install binary tools: git-delta, rtk, opencode (single layer)
+RUN ARCH=$(uname -m) && \
+  case "$ARCH" in \
+  x86_64) DELTA_ARCH="x86_64-unknown-linux-musl"; RTK_ARCH="x86_64-unknown-linux-musl"; OC_ARCH="x64" ;; \
+  aarch64) DELTA_ARCH="aarch64-unknown-linux-gnu"; RTK_ARCH="aarch64-unknown-linux-gnu"; OC_ARCH="arm64" ;; \
+  *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+  esac && \
+  # git-delta
+  curl -fSL -o /tmp/delta.tar.gz \
+  "https://github.com/dandavison/delta/releases/download/${DELTA_VERSION}/delta-${DELTA_VERSION}-${DELTA_ARCH}.tar.gz" && \
+  tar -xzf /tmp/delta.tar.gz -C /tmp && \
+  install -m 0755 /tmp/delta-${DELTA_VERSION}-${DELTA_ARCH}/delta /usr/local/bin/delta && \
+  # rtk
+  curl -fSL -o /tmp/rtk.tar.gz \
+  "https://github.com/rtk-ai/rtk/releases/download/${RTK_VERSION}/rtk-${RTK_ARCH}.tar.gz" && \
+  tar -xzf /tmp/rtk.tar.gz -C /tmp && \
+  install -m 0755 /tmp/rtk /usr/local/bin/rtk && \
+  # opencode
+  mkdir -p /usr/local/lib/opencode && \
+  curl -fSL -o /tmp/opencode.tar.gz \
+  "https://github.com/anomalyco/opencode/releases/download/${OPENCODE_VERSION}/opencode-linux-${OC_ARCH}.tar.gz" && \
+  tar -xzf /tmp/opencode.tar.gz -C /usr/local/lib/opencode && \
+  ln -sf /usr/local/lib/opencode/opencode /usr/local/bin/opencode && \
+  chmod +x /usr/local/bin/opencode /usr/local/lib/opencode/opencode && \
+  # cleanup
+  rm -rf /tmp/delta* /tmp/rtk* /tmp/opencode* && \
+  delta --version && rtk --version && (opencode --version || true)
+
 ENV PROFILE_EXT=/etc/profile.d/udi_environment.sh 
 
 RUN dnf -y -q install --setopt=tsflags=nodocs \
   git ca-certificates jq \
   fuse-overlayfs container-tools \
-  bash bash-completion tar gzip unzip bzip2 which shadow-utils findutils wget sudo git-lfs procps-ng vim neovim && \
+  bash bash-completion tar gzip unzip bzip2 which shadow-utils findutils wget sudo git-lfs procps-ng vim neovim \
+  fzf less openssh-clients gnupg2 zsh glibc-langpack-en tzdata glibc-locale-source glibc-langpack-en && \
   dnf -y -q reinstall shadow-utils ca-certificates && \
   dnf -y -q update && \
   dnf -y -q clean all --enablerepo='*' && \
@@ -103,6 +157,7 @@ RUN dnf -y -q install --setopt=tsflags=nodocs \
   useradd -u 1000 -G wheel,root -d /home/user --shell /bin/bash -m user && \
   # $PROFILE_EXT contains all additions made to the bash environment
   touch ${PROFILE_EXT} && \
+  echo 'export PATH="/home/user/.local/bin:$PATH"' >> ${PROFILE_EXT} && \
   # Setup $PS1 for a consistent and reasonable prompt
   touch /etc/profile.d/udi_prompt.sh && \
   echo "export PS1='\W \`git branch --show-current 2>/dev/null | sed -r -e \"s@^(.+)@\(\1\) @\"\`$ '" >> /etc/profile.d/udi_prompt.sh && \
@@ -121,6 +176,29 @@ RUN dnf -y -q install --setopt=tsflags=nodocs \
   > ${HOME}/group.template && \
   # Define user directory for binaries
   mkdir -p /home/user/.local/bin
+
+# Generate locale and configure timezone
+RUN localedef -i en_AU -f UTF-8 en_AU.UTF-8 && \
+  ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+  echo $TZ > /etc/timezone
+
+# Install oh-my-zsh via zsh-in-docker (as build-time user)
+RUN curl -fsSL -o /tmp/zsh-in-docker.sh \
+  https://raw.githubusercontent.com/deluan/zsh-in-docker/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh && \
+  chmod +x /tmp/zsh-in-docker.sh && \
+  /tmp/zsh-in-docker.sh -- \
+  -t git \
+  -t fzf \
+  -t mix \
+  -t zsh-autosuggestions && \
+  rm -f /tmp/zsh-in-docker.sh
+
+# Install hex and rebar (as build-time user)
+RUN runuser -u user -- mix local.hex --force && \
+  runuser -u user -- mix local.rebar --force
+
+# Mark all directories as safe for git (as build-time user)
+RUN runuser -u user -- git config --global --add safe.directory '*'
 
 RUN \
   ## Rootless podman install #2: install podman buildah skopeo e2fsprogs (above)
